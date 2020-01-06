@@ -46,9 +46,19 @@ def open(fd: AsyncGenerator, mode:str = 'rt', encoding: Optional[str] = None, co
         )
     else:
         if 'w' in mode:
+            compressor = None
+            if compression == 'gzip':
+                compressor = GzipCompressor()
+            elif compression == 'bzip2':
+                compressor = Bzip2Compressor()
+            elif compression == 'zstd':
+                compressor = ZstdCompressor()
+            elif compression is None:
+                compressor = NoCompressor()
+
             return AsyncioFileObj(
                 fd,
-                GzipCompressor()
+                compressor
             )
         else:
             return AsyncioFileObj(

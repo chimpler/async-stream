@@ -31,7 +31,7 @@ async def test_writer(compression: str, extension: str):
     baby_name_filename = os.path.join(os.path.dirname(__file__), 'data', 'baby_names.csv')
     async with aiofiles.open(baby_name_filename, 'rb') as fd:
         async with aiofiles.open('/tmp/test' + extension, 'wb') as wfd:
-            async with asyncstream.open(wfd, 'wb') as gzfd:
+            async with asyncstream.open(wfd, 'wb', compression=compression) as gzfd:
                 async for line in fd:
                     await gzfd.write(line)
             assert False

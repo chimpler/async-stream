@@ -10,11 +10,59 @@ from typing import AsyncGenerator, Optional
 import pyarrow.parquet as pq
 import pyarrow.orc as orc
 import aiofiles
+import zstd
 from pandas import DataFrame
 from pyarrow.lib import Table
 
 from asyncstream.readers import open_parquet, open_parquet_pandas
 
+class NoCompressor(object):
+    def __init__(self):
+        self._comp = bz2.BZ2Compressor()
+
+    def compress(self, data: str):
+        return data
+
+    def flush(self):
+        pass
+
+    def close(self):
+        pass
+
+class Bzip2Compressor(object):
+    def __init__(self):
+        self._comp = bz2.BZ2Compressor()
+        self._has_flushed = False
+
+    def compress(self, data: str):
+        self._has_flushed = False
+        return self._comp.compress(data)
+
+    def flush(self):
+        if not self._has_flushed:
+            self._has_flushed = True
+            return self._comp.flush()
+
+    def close(self):
+        return self.flush()
+
+class ZstdCompressor(object):
+    def __init__(self):
+        dctx = zstd.ZstdCompressor()
+        self._comp = dctx.compressobj()
+        self._has_flushed = False
+
+    def compress(self, data: str):
+        self._has_flushed = False
+        return self._comp.compress(data)
+
+    def flush(self):
+        if not self._has_flushed:
+            self._has_flushed = True
+            return self._comp.flush()
+
+    def close(self):
+        return self.flush()
 
 class GzipCompressor(object):
     GZIP_HEADER = b'\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\xff'
@@ -24,21 +72,29 @@ class GzipCompressor(object):
         self._crc = zlib.crc32(b"") & 0xffffffff
         self._size = 0
         self._before_header = True
+        self._has_flushed = False
 
     def compress(self, data: str):
+        self._has_flushed = False
+        self._crc = zlib.crc32(data, self._crc) & 0xffffffff
+        self._size += len(data)
+        compressed_data =  self._comp.compress(data)
+
         if self._before_header:
             self._before_header = False
-            return self.GZIP_HEADER
+            return self.GZIP_HEADER + compressed_data
         else:
-            self._crc = zlib.crc32(data, self._crc) & 0xffffffff
-            self._size += len(data)
-            return self._comp.compress(data)
+            return compressed_data
 
     def flush(self):
-        return self._comp.flush()
+        if not self._has_flushed:
+            self._has_flushed = True
+            return self._comp.flush()
 
     def close(self):
-        return struct.pack("<2L", self._crc, self._size & 0xffffffff)
+        result = self.flush()
+        close_str = struct.pack("<2L", self._crc, self._size & 0xffffffff)
+        return (result if result else b'') + close_str
 
 
 # async def block_gzip(fd: FileIO, buffer: str):
