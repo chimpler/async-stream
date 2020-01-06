@@ -203,16 +203,6 @@ async def open_compressed(fd: AsyncGenerator, compression: Optional[str] = None,
         yield line
 
 
-async def open(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None,
-               buffer_size: int = 16384):
-    if encoding:
-        async for row in reader_columnar(fd, encoding, compression, buffer_size):
-            yield ','.join(row) + '\n'
-    else:
-        async for row in open_compressed(fd, compression, buffer_size):
-            yield row
-
-
 async def reader(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None,
                  buffer_size: int = 16384,
                  dialect: str = 'excel', *args, **kwargs):
