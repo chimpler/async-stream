@@ -1,4 +1,13 @@
 async-stream
 ============
 
-Simple WIP to stream compress files from/to gzip/bzip2/parquet/orc.
+Simple library to compress/uncompress Async streams.
+
+
+## Examples
+
+### Simple compression
+
+### Simple parquet encoding
+
+### Simple compression to S3
