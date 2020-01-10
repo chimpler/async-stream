@@ -31,7 +31,7 @@ def get_raw_lines(filename: str):
     ]
 )
 @pytest.mark.asyncio
-async def test_writer(compression: str, extension: str):
+async def test_open(compression: str, extension: str):
     baby_name_filename = os.path.join(os.path.dirname(__file__), 'data', 'baby_names.csv')
     decomp_func = getattr(test_utils, 'uncompress_' + str(compression).lower())
     async with aiofiles.open(baby_name_filename, 'rb') as fd:
@@ -44,6 +44,16 @@ async def test_writer(compression: str, extension: str):
             assert get_raw_lines(baby_name_filename) == result
         # assert get_raw_rows(baby_name_filename) == await async_gen_to_list(asyncstream.reader(fd, compression=compression))
 
+@pytest.mark.asyncio
+async def test_write_parquet():
+    baby_name_filename = os.path.join(os.path.dirname(__file__), 'data', 'baby_names.csv')
+    async with aiofiles.open(baby_name_filename, 'rb') as fd:
+        async with asyncstream.reader(fd, ignore_header=False) as reader:
+            async with aiofiles.open('/tmp/abc.parquet', 'wb') as wfd:
+                writer = asyncstream.writer(wfd, encoding='parquet', columns=await reader.header())
+                async for row in reader:
+                    writer.writerow(row)
+                await writer.close()
 
 # @pytest.mark.parametrize(
 #     "compression,extension", [

@@ -1,20 +1,18 @@
-import asyncio
 import bz2
-import csv
+import io
 import struct
 import zlib
-from functools import partial
 from io import FileIO
-from tempfile import SpooledTemporaryFile
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Iterable, Any
+
+import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
-import pyarrow.orc as orc
-import aiofiles
 import zstd
 from pandas import DataFrame
-from pyarrow.lib import Table
 
 from asyncstream.readers import open_parquet, open_parquet_pandas
+
 
 class NoCompressor(object):
     def __init__(self):
@@ -28,6 +26,7 @@ class NoCompressor(object):
 
     def close(self):
         pass
+
 
 class Bzip2Compressor(object):
     def __init__(self):
@@ -45,6 +44,7 @@ class Bzip2Compressor(object):
 
     def close(self):
         return self.flush()
+
 
 class ZstdCompressor(object):
     def __init__(self):
@@ -64,6 +64,7 @@ class ZstdCompressor(object):
     def close(self):
         return self.flush()
 
+
 class GzipCompressor(object):
     GZIP_HEADER = b'\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\xff'
 
@@ -78,7 +79,7 @@ class GzipCompressor(object):
         self._has_flushed = False
         self._crc = zlib.crc32(data, self._crc) & 0xffffffff
         self._size += len(data)
-        compressed_data =  self._comp.compress(data)
+        compressed_data = self._comp.compress(data)
 
         if self._before_header:
             self._before_header = False
@@ -95,6 +96,60 @@ class GzipCompressor(object):
         result = self.flush()
         close_str = struct.pack("<2L", self._crc, self._size & 0xffffffff)
         return (result if result else b'') + close_str
+
+
+class ParquetWriter(object):
+    def __init__(self, afd: AsyncGenerator, encoding: str, compression: str, columns: Optional[Iterable[str]]=None, column_types: Optional[Iterable[str]]=None):
+        if encoding != 'parquet':
+            raise Exception('Only parquet encofing ')
+        self._afd = afd
+        self._rows = []
+        self._compression = compression
+        self._columns = columns
+        self._column_types = column_types
+
+    def writerow(self, row: Iterable[Any]):
+        self._rows.append(row)
+
+    def writerows(self, rows: Iterable[Iterable[Any]]):
+        self._rows.extend(rows)
+
+    def flush(self):
+        pass
+
+    async def close(self):
+        iobytes = io.BytesIO()
+        df = pd.DataFrame(self._rows, columns=self._columns, dtype=self._column_types)
+        df.to_parquet(iobytes, engine='pyarrow', compression=self._compression)
+
+        # table = pa.Table.from_pandas(self._df)
+        # pq.write_to_dataset(
+        #     table
+        # )
+        #
+        iobytes.flush()
+        iobytes.seek(0)
+        await self._afd.write(iobytes.getvalue())
+
+
+class Writer(object):
+    def __init__(self, afd: AsyncGenerator, delimiter: str = '\t'):
+        self._afd = afd
+        self._delimiter = delimiter
+
+    async def writerow(self, row: Iterable[Any]):
+        await self._afd.write(self._delimiter.join([str(c) for c in row]))
+
+    async def writerows(self, rows: Iterable[Iterable[Any]]):
+        async for row in rows:
+            await self._afd.write(self._delimiter.join([str(c) for c in row]))
+
+
+def writer(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None, columns: Optional[Iterable[str]] = None, column_types: Optional[Iterable[str]] = None, ):
+    if encoding is None:
+        return Writer(fd)
+    else:
+        return ParquetWriter(fd, encoding, compression, columns, column_types,)
 
 
 # async def block_gzip(fd: FileIO, buffer: str):

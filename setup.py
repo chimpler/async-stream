@@ -43,6 +43,7 @@ setup(
         'uvloop',
         'aiofiles',
         'pyarrow==0.14.1',
+        'pyorc',
         'pandas'
     ],
     packages=find_packages(),

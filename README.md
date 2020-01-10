@@ -1,8 +1,10 @@
 async-stream
 ============
 
-Simple library to compress/uncompress Async streams.
+    DO NOT USE - in development
 
+
+Simple library to compress/uncompress Async streams.
 
 ## Examples
 

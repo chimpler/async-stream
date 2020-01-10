@@ -4,7 +4,9 @@ import csv
 import zlib
 from io import FileIO
 from tempfile import SpooledTemporaryFile
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Iterable
+
+import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow.orc as orc
 import aiofiles
@@ -115,7 +117,13 @@ async def open_arrow_pandas(encoder, fd: FileIO, buffer_memory: int = 1048576):
 
 
 async def open_parquet_pandas(fd: FileIO, buffer_memory: int = 1048576):
-    return await open_arrow_pandas(pq, fd, buffer_memory)
+    with SpooledTemporaryFile(mode='w+b', max_size=buffer_memory) as wfd:
+        async for buf in fd:
+            wfd.write(buf)
+
+        wfd.flush()
+        wfd.seek(0)
+        return pd.read_parquet(wfd, engine='pyarrow')
 
 
 async def open_orc_pandas(fd: FileIO, buffer_memory: int = 1048576):
@@ -135,9 +143,8 @@ async def open_orc(fd: FileIO, buffer_memory: int = 1048576):
 
 
 async def reader_columnar(fd: AsyncGenerator, encoding: str, compression: Optional[str] = None,
-                          buffer_size: int = 16384):
+                          buffer_size: int = 16384, ignore_header=True):
     assert encoding is not None
-
     if compression is None:
         uncompressed_data = fd
     elif compression == 'gzip':
@@ -154,9 +161,11 @@ async def reader_columnar(fd: AsyncGenerator, encoding: str, compression: Option
     else:
         raise ValueError('Invalid encoding {encoding}'.format(encoding=encoding))
 
-    for row in table.to_pandas().itertuples(index=False):
-        yield row
+    if not ignore_header:
+        yield(list(table.columns.values))
 
+    for row in table.itertuples(index=False):
+        yield [col.decode('utf-8') if isinstance(col, bytes) else str(col) for col in row]
 
 async def reader_compressed(fd: AsyncGenerator, compression: Optional[str] = None,
                             buffer_size: int = 16384, dialect: str = 'excel', *args, **kwargs):
@@ -203,15 +212,43 @@ async def open_compressed(fd: AsyncGenerator, compression: Optional[str] = None,
         yield line
 
 
-async def reader(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None,
+class AsyncReader(object):
+    def __init__(self, aiter: Optional[AsyncGenerator], ignore_header: bool = True, header: Iterable[str] = None):
+        self._aiter = aiter
+        self._ignore_header = ignore_header
+        self._header = header
+
+    async def header(self):
+        if not self._ignore_header and not self._header:
+            self._header = self._aiter.__anext__()
+
+        return await self._header
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        await self.close()
+
+    def __aiter__(self):
+        return self
+
+    def __anext__(self):
+        if not self._ignore_header and not self._header:
+            self._header = self._aiter.__anext__()
+        return self._aiter.__anext__()
+
+    async def close(self):
+        pass
+
+
+def reader(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None,
                  buffer_size: int = 16384,
-                 dialect: str = 'excel', *args, **kwargs):
+                 dialect: str = 'excel', ignore_header=True, *args, **kwargs):
     if encoding:
-        async for row in reader_columnar(fd, encoding, compression, buffer_size):
-            yield row
+        return AsyncReader(reader_columnar(fd, encoding, compression, buffer_size, ignore_header=ignore_header), ignore_header=ignore_header)
     else:
-        async for row in reader_compressed(fd, compression, buffer_size):
-            yield row
+        return AsyncReader(reader_compressed(fd, compression, buffer_size), ignore_header=ignore_header)
 
 # async def run():
 #     async with aiofiles.open('samples/volumes/localstack/s3/bucket/test/nation.dict.parquet.bz2', 'rb') as fd:
