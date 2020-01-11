@@ -1,4 +1,3 @@
-import asyncio
 import bz2
 import csv
 import zlib
@@ -7,9 +6,7 @@ from tempfile import SpooledTemporaryFile
 from typing import AsyncGenerator, Optional, Iterable
 
 import pandas as pd
-import pyarrow.parquet as pq
 import pyarrow.orc as orc
-import aiofiles
 import zstd
 
 
@@ -144,20 +141,10 @@ async def open_orc(fd: FileIO, buffer_memory: int = 1048576):
 
 async def reader_columnar(fd: AsyncGenerator, encoding: str, compression: Optional[str] = None,
                           buffer_size: int = 16384, ignore_header=True):
-    assert encoding is not None
-    if compression is None:
-        uncompressed_data = fd
-    elif compression == 'gzip':
-        uncompressed_data = open_gzip_block(fd)
-    elif compression == 'bzip2':
-        uncompressed_data = open_bzip2_block(fd)
-    else:
-        raise ValueError('Invalid compression {compression}'.format(compression=compression))
-
     if encoding == 'parquet':
-        table = await open_parquet_pandas(uncompressed_data)
+        table = await open_parquet_pandas(fd)
     elif encoding == 'orc':
-        table = await open_orc_pandas(uncompressed_data)
+        table = await open_orc_pandas(fd)
     else:
         raise ValueError('Invalid encoding {encoding}'.format(encoding=encoding))
 

@@ -48,7 +48,8 @@ setup(
     ],
     packages=find_packages(),
     tests_require=[
-        'pytest-asyncio'
+        'pytest-asyncio',
+        'pytest-cov'
     ],
     entry_points={
         'console_scripts': [

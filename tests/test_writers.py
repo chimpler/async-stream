@@ -1,5 +1,4 @@
 import csv
-import io
 import os
 import tempfile
 
@@ -8,7 +7,7 @@ import pytest
 
 import asyncstream
 from tests.data import test_utils
-from tests.data.test_utils import async_gen_to_list
+from tests.data.test_utils import decode_parquet
 
 
 def get_raw_rows(filename: str):
@@ -42,29 +41,24 @@ async def test_open(compression: str, extension: str):
                         await gzfd.write(line)
             result = decomp_func(tmpfd.name)
             assert get_raw_lines(baby_name_filename) == result
-        # assert get_raw_rows(baby_name_filename) == await async_gen_to_list(asyncstream.reader(fd, compression=compression))
 
+@pytest.mark.parametrize(
+    "compression", [
+        None,
+        'snappy',
+        'gzip',
+        'brotli'
+    ]
+)
 @pytest.mark.asyncio
-async def test_write_parquet():
+async def test_write_parquet(compression: str):
     baby_name_filename = os.path.join(os.path.dirname(__file__), 'data', 'baby_names.csv')
     async with aiofiles.open(baby_name_filename, 'rb') as fd:
         async with asyncstream.reader(fd, ignore_header=False) as reader:
-            async with aiofiles.open('/tmp/abc.parquet', 'wb') as wfd:
-                writer = asyncstream.writer(wfd, encoding='parquet', columns=await reader.header())
-                async for row in reader:
-                    writer.writerow(row)
-                await writer.close()
-
-# @pytest.mark.parametrize(
-#     "compression,extension", [
-#         (None, ''),
-#         ('gzip', '.gz'),
-#         ('bzip2', '.bz2'),
-#         ('zstd', '.zst')
-#     ]
-# )
-# @pytest.mark.asyncio
-# async def test_open(compression: str, extension: str):
-#     baby_name_filename = os.path.join(os.path.dirname(__file__), 'data', 'baby_names.csv')
-#     async with aiofiles.open(baby_name_filename + extension, 'rb') as fd:
-#         assert get_raw_lines(baby_name_filename) == await async_gen_to_list(asyncstream.open(fd, compression=compression))
+            with tempfile.NamedTemporaryFile() as tmpfd:
+                async with aiofiles.open(tmpfd.name, 'wb') as wfd:
+                    writer = asyncstream.writer(wfd, encoding='parquet', columns=await reader.header())
+                    async for row in reader:
+                        writer.writerow(row)
+                    await writer.close()
+                assert get_raw_lines(baby_name_filename) == decode_parquet(tmpfd.name).encode('utf-8').splitlines(True)
