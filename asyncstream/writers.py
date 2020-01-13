@@ -6,12 +6,9 @@ from io import FileIO
 from typing import AsyncGenerator, Optional, Iterable, Any
 
 import pandas as pd
-import pyarrow as pa
 import pyarrow.parquet as pq
 import zstd
 from pandas import DataFrame
-
-from asyncstream.readers import open_parquet, open_parquet_pandas
 
 
 class NoCompressor(object):
@@ -99,7 +96,8 @@ class GzipCompressor(object):
 
 
 class ParquetWriter(object):
-    def __init__(self, afd: AsyncGenerator, encoding: str, compression: str, columns: Optional[Iterable[str]]=None, column_types: Optional[Iterable[str]]=None):
+    def __init__(self, afd: AsyncGenerator, encoding: str, compression: str, columns: Optional[Iterable[str]] = None,
+                 column_types: Optional[Iterable[str]] = None):
         if encoding != 'parquet':
             raise Exception('Only parquet encofing ')
         self._afd = afd
@@ -145,11 +143,12 @@ class Writer(object):
             await self._afd.write(self._delimiter.join([str(c) for c in row]))
 
 
-def writer(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None, columns: Optional[Iterable[str]] = None, column_types: Optional[Iterable[str]] = None, ):
+def writer(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None,
+           columns: Optional[Iterable[str]] = None, column_types: Optional[Iterable[str]] = None, ):
     if encoding is None:
         return Writer(fd)
     else:
-        return ParquetWriter(fd, encoding, compression, columns, column_types,)
+        return ParquetWriter(fd, encoding, compression, columns, column_types, )
 
 
 # async def block_gzip(fd: FileIO, buffer: str):

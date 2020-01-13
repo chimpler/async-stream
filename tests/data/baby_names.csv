@@ -1,4 +1,4 @@
-Year of Birth,Gender,Ethnicity,Child's First Name,Count,Rank
+birth_year,gender,ethnicity,child_name,count,rank
 2011,FEMALE,HISPANIC,IRIS,10,78
 2011,FEMALE,HISPANIC,JAYLEEN,51,40
 2011,FEMALE,HISPANIC,KAILEY,20,68

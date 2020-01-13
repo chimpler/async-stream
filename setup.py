@@ -44,7 +44,8 @@ setup(
         'aiofiles',
         'pyarrow==0.14.1',
         'pyorc',
-        'pandas'
+        'pandas',
+        'python-snappy'
     ],
     packages=find_packages(),
     tests_require=[

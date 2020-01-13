@@ -3,6 +3,7 @@ from typing import Callable
 from asyncstream.readers import *
 from asyncstream.writers import *
 
+
 class AsyncioFileObj(object):
     def __init__(self, aiter: Optional[AsyncGenerator], compressor=None):
         self._aiter = aiter
@@ -36,7 +37,9 @@ class AsyncioFileObj(object):
         if result:
             await self._aiter.write(result)
 
-def open(fd: AsyncGenerator, mode:str = 'rt', encoding: Optional[str] = None, compression: Optional[str] = None, buffer_size: int = 16384):
+
+def open(fd: AsyncGenerator, mode: str = 'rt', encoding: Optional[str] = None, compression: Optional[str] = None,
+         buffer_size: int = 16384):
     if encoding:
         return AsyncioFileObj(
             (

@@ -1,12 +1,14 @@
 import bz2
 import csv
+import io
 import zlib
 from io import FileIO
-from tempfile import SpooledTemporaryFile
+from tempfile import SpooledTemporaryFile, TemporaryFile
 from typing import AsyncGenerator, Optional, Iterable
 
 import pandas as pd
 import pyarrow.orc as orc
+import pyorc
 import zstd
 
 
@@ -92,27 +94,6 @@ async def open_zstd(fd: FileIO):
     if lines:
         yield lines[-1]
 
-
-class PandasBatches(object):
-    def __init__(self, batches, schema):
-        self.batches = batches
-        for b in batches:
-            print(type(b))
-
-    def __iter__(self):
-        return self.batches
-
-
-async def open_arrow_pandas(encoder, fd: FileIO, buffer_memory: int = 1048576):
-    with SpooledTemporaryFile(mode='w+b', max_size=buffer_memory) as wfd:
-        async for buf in fd:
-            wfd.write(buf)
-
-        wfd.flush()
-        wfd.seek(0)
-        return encoder.read_table(wfd)
-
-
 async def open_parquet_pandas(fd: FileIO, buffer_memory: int = 1048576):
     with SpooledTemporaryFile(mode='w+b', max_size=buffer_memory) as wfd:
         async for buf in fd:
@@ -123,36 +104,33 @@ async def open_parquet_pandas(fd: FileIO, buffer_memory: int = 1048576):
         return pd.read_parquet(wfd, engine='pyarrow')
 
 
-async def open_orc_pandas(fd: FileIO, buffer_memory: int = 1048576):
-    return await open_arrow_pandas(orc, fd, buffer_memory)
-
-
-async def open_parquet(fd: FileIO, buffer_memory: int = 1048576):
-    for batch in await open_parquet_pandas(fd, buffer_memory):
-        for row in batch.itertuples(index=False):
-            yield b','.join((value if isinstance(value, bytes) else str(value).encode('utf-8') for value in row[1:]))
-
-
-async def open_orc(fd: FileIO, buffer_memory: int = 1048576):
-    async for batch in open_parquet_pandas(fd, buffer_memory):
-        for row in batch.itertuples(index=False):
-            yield b','.join((value if isinstance(value, bytes) else str(value).encode('utf-8') for value in row[1:]))
-
-
-async def reader_columnar(fd: AsyncGenerator, encoding: str, compression: Optional[str] = None,
-                          buffer_size: int = 16384, ignore_header=True):
-    if encoding == 'parquet':
-        table = await open_parquet_pandas(fd)
-    elif encoding == 'orc':
-        table = await open_orc_pandas(fd)
-    else:
-        raise ValueError('Invalid encoding {encoding}'.format(encoding=encoding))
+async def reader_parquet(fd: AsyncGenerator, buffer_size: int = 16384, ignore_header=True):
+    table = await open_parquet_pandas(fd)
 
     if not ignore_header:
         yield(list(table.columns.values))
 
     for row in table.itertuples(index=False):
         yield [col.decode('utf-8') if isinstance(col, bytes) else str(col) for col in row]
+
+async def reader_orc(fd: AsyncGenerator, buffer_size: int = 16384, ignore_header=True):
+    # buffer = io.BytesIO()
+    # print(fd)
+    # async for data in fd:
+    #     buffer.write(data)
+
+    with TemporaryFile(mode='w+b') as wfd:
+        async for buf in fd:
+            wfd.write(buf)
+        wfd.flush()
+        wfd.seek(0)
+
+        reader = pyorc.Reader(wfd)
+        if not ignore_header:
+            yield list(reader.schema.fields.keys())
+
+        for row in reader:
+            yield list(row)
 
 async def reader_compressed(fd: AsyncGenerator, compression: Optional[str] = None,
                             buffer_size: int = 16384, dialect: str = 'excel', *args, **kwargs):
@@ -232,10 +210,14 @@ class AsyncReader(object):
 def reader(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None,
                  buffer_size: int = 16384,
                  dialect: str = 'excel', ignore_header=True, *args, **kwargs):
-    if encoding:
-        return AsyncReader(reader_columnar(fd, encoding, compression, buffer_size, ignore_header=ignore_header), ignore_header=ignore_header)
-    else:
+    if encoding is None:
         return AsyncReader(reader_compressed(fd, compression, buffer_size), ignore_header=ignore_header)
+    elif encoding == 'parquet':
+        return AsyncReader(reader_parquet(fd, buffer_size, ignore_header=ignore_header), ignore_header=ignore_header)
+    elif encoding == 'orc':
+        return AsyncReader(reader_orc(fd, buffer_size, ignore_header=ignore_header), ignore_header=ignore_header)
+    else:
+        raise ValueError('Encoding {encoding} is not supported'.format(encoding=encoding))
 
 # async def run():
 #     async with aiofiles.open('samples/volumes/localstack/s3/bucket/test/nation.dict.parquet.bz2', 'rb') as fd:

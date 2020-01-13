@@ -3,10 +3,12 @@ import csv
 import gzip
 import io
 from io import FileIO
+from itertools import zip_longest
 from tempfile import SpooledTemporaryFile
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Iterable
 
 import pandas as pd
+import pyorc
 import zstd
 
 
@@ -80,3 +82,30 @@ def decode_parquet(filename: str):
     with open(filename, 'rb') as fd:
         df = pd.read_parquet(fd, engine='pyarrow')
         return df.to_csv(index=False).rstrip('\n')
+
+def encode_orc(filename: str, compression: str = None, columns: Iterable[str] = None, column_types: Iterable[str] = None, skip_header=True):
+    buffer = io.BytesIO()
+    with open(filename, 'rt') as fd:
+        reader = csv.reader(fd)
+
+        struct = 'struct<{columns}>'.format(
+            columns=','.join(
+                name + ':' + (col_type if col_type else 'string')
+                for name, col_type in zip_longest(columns, column_types)
+            )
+        )
+
+        if skip_header:
+            next(reader)
+
+        with pyorc.Writer(buffer, struct) as writer:
+            for row in reader:
+                writer.write(tuple(row))
+
+    return buffer.getvalue()
+
+def decode_orc(filename: str):
+    with open(filename, "rb") as data:
+        reader = pyorc.Reader(data)
+        for row in reader:
+            print(row)
