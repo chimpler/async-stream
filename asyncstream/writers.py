@@ -131,20 +131,26 @@ class ParquetWriter(object):
 
 
 class Writer(object):
-    def __init__(self, afd: AsyncGenerator, delimiter: str = '\t'):
+    def __init__(self, afd: AsyncGenerator, delimiter: str = b'\t'):
         self._afd = afd
         self._delimiter = delimiter
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        await self._afd.close()
+
     async def writerow(self, row: Iterable[Any]):
-        await self._afd.write(self._delimiter.join([str(c) for c in row]))
+        await self._afd.write(self._delimiter.join([str(c).encode('utf-8') for c in row]))
 
     async def writerows(self, rows: Iterable[Iterable[Any]]):
         async for row in rows:
-            await self._afd.write(self._delimiter.join([str(c) for c in row]))
+            await self.writerow(row)
 
 
 def writer(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Optional[str] = None,
-           columns: Optional[Iterable[str]] = None, column_types: Optional[Iterable[str]] = None, ):
+           columns: Optional[Iterable[str]] = None, column_types: Optional[Iterable[str]] = None):
     if encoding is None:
         return Writer(fd)
     else:
