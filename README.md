@@ -16,7 +16,7 @@ import aiofiles
 import asyncstream
 import asyncio
 
-def run():
+async def run():
     async with aiofiles.open('input.txt', 'rb') as fd:
         async with aiofiles.open('output.txt.gz', 'wb') as wfd:
             async with asyncstream.open(wfd, 'wb', compression='gzip') as gzfd:
@@ -79,11 +79,11 @@ Compression                                  | Status
 Encoding                                  | Status
 -------------------------------------- | :-----:
 `parquet`                          | :white_check_mark:
-    o `snappy`                  | :white_check_mark:
-    o `zlib`                  | :white_check_mark:
-    o `brotli`                  | :white_check_mark:
+o `snappy`                  | :white_check_mark:
+o `zlib`                  | :white_check_mark:
+o `brotli`                  | :white_check_mark:
 `orc`                          | :white_check_mark:
-    o `snappy`                  | :white_check_mark:
-    o `zlib`                  | :white_check_mark:
-    o `zstd`                  | :white_check_mark:
-    o `gzip`                  | :white_check_mark:
+o `snappy`                  | :white_check_mark:
+o `zlib`                  | :white_check_mark:
+o `zstd`                  | :white_check_mark:
+o `gzip`                  | :white_check_mark:
