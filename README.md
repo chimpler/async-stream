@@ -83,6 +83,12 @@ async def run():
 asyncio.run(run())
 ```
 
+### Simple parquet decoding
+
+### Simple orc encoding
+
+### Simple orc decoding
+
 Other compression scheme are supported: `zlib`, `brotli`.
 
 ### Simple gunzip from s3
@@ -111,15 +117,24 @@ Compression                                  | Status
 `snappy`                          | :white_check_mark:
 `zstd`                          | :white_check_mark:
 
-### Encoding supported
-Encoding                                  | Status
+### Parquet
+Compression                                  | Status
 -------------------------------------- | :-----:
-`parquet`                          | :white_check_mark:
-o `snappy`                  | :white_check_mark:
-o `zlib`                  | :white_check_mark:
-o `brotli`                  | :white_check_mark:
-`orc`                          | :white_check_mark:
-o `snappy`                  | :white_check_mark:
-o `zlib`                  | :white_check_mark:
-o `zstd`                  | :white_check_mark:
-o `gzip`                  | :white_check_mark:
+none                    | :white_check_mark:
+`brotli`                  | :white_check_mark:
+`bzip2`                  | :x: 
+`gzip`                  | :x: 
+`snappy`                  | :white_check_mark:
+`zstd`                  | :x:
+`zlib`                  | :white_check_mark:
+
+### Orc
+
+Compression                       | Status
+-------------------------------------- | :-----:
+none                    | :white_check_mark:
+`bzip2`                  | :x: 
+`gzip`                  | :white_check_mark:
+`snappy`                  | :white_check_mark:
+`zlib`                  | :white_check_mark:
+`zstd`                  | :white_check_mark:
