@@ -10,6 +10,7 @@ import pandas as pd
 import pyarrow.orc as orc
 import pyorc
 import zstd
+import snappy
 
 
 async def open_gzip_block(fd: FileIO):
@@ -55,6 +56,25 @@ async def open_gzip(fd: FileIO):
     for line in out_buf.splitlines(True):
         yield line
 
+async def open_snappy(fd: FileIO):
+    decomp = snappy.StreamDecompressor()
+    out_buf = b''
+    async for buf in fd:
+        data = decomp.decompress(buf)
+        if data:
+            out_buf += data
+            lines = out_buf.splitlines(True)
+            for line in lines[:-1]:
+                yield line
+
+            if lines:
+                out_buf = lines[-1]
+            else:
+                out_buf = b''
+
+    out_buf += decomp.flush()
+    for line in out_buf.splitlines(True):
+        yield line
 
 async def open_bzip2(fd: FileIO):
     decomp = bz2.BZ2Decompressor()
@@ -113,18 +133,18 @@ async def reader_parquet(fd: AsyncGenerator, buffer_size: int = 16384, ignore_he
     for row in table.itertuples(index=False):
         yield [col.decode('utf-8') if isinstance(col, bytes) else str(col) for col in row]
 
-async def reader_orc(fd: AsyncGenerator, buffer_size: int = 16384, ignore_header=True):
+async def reader_orc(fd: AsyncGenerator, compression: Optional[str] = None, buffer_size: int = 16384, ignore_header=True):
+    # 'LZ4', 'LZO', 'NONE', 'SNAPPY', 'ZLIB', 'ZSTD'
     # buffer = io.BytesIO()
     # print(fd)
     # async for data in fd:
     #     buffer.write(data)
 
     with TemporaryFile(mode='w+b') as wfd:
-        async for buf in fd:
+        async for buf in open_compressed(fd, compression):
             wfd.write(buf)
         wfd.flush()
         wfd.seek(0)
-
         reader = pyorc.Reader(wfd)
         if not ignore_header:
             yield list(reader.schema.fields.keys())
@@ -170,6 +190,8 @@ async def open_compressed(fd: AsyncGenerator, compression: Optional[str] = None,
         lines = open_bzip2(fd)
     elif compression == 'zstd':
         lines = open_zstd(fd)
+    elif compression == 'snappy':
+        lines = open_snappy(fd)
     else:
         raise ValueError('Invalid compression {compression}'.format(compression=compression))
 
@@ -215,7 +237,7 @@ def reader(fd: AsyncGenerator, encoding: Optional[str] = None, compression: Opti
     elif encoding == 'parquet':
         return AsyncReader(reader_parquet(fd, buffer_size, ignore_header=ignore_header), ignore_header=ignore_header)
     elif encoding == 'orc':
-        return AsyncReader(reader_orc(fd, buffer_size, ignore_header=ignore_header), ignore_header=ignore_header)
+        return AsyncReader(reader_orc(fd, compression, buffer_size, ignore_header=ignore_header), ignore_header=ignore_header)
     else:
         raise ValueError('Encoding {encoding} is not supported'.format(encoding=encoding))
 
