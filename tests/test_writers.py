@@ -6,8 +6,8 @@ import aiofiles
 import pytest
 
 import asyncstream
-from tests.data import test_utils
-from tests.data.test_utils import decode_parquet
+from tests import test_utils
+from tests.test_utils import decode_parquet, decode_orc
 
 
 def get_raw_rows(filename: str):
@@ -62,3 +62,23 @@ async def test_write_parquet(compression: str):
                         writer.writerow(row)
                     await writer.close()
                 assert get_raw_lines(baby_name_filename) == decode_parquet(tmpfd.name).encode('utf-8').splitlines(True)
+
+# @pytest.mark.parametrize(
+#     "compression", [
+#         None,
+#         'snappy',
+#         'gzip'
+#     ]
+# )
+# @pytest.mark.asyncio
+# async def test_write_orc(compression: str):
+#     baby_name_filename = os.path.join(os.path.dirname(__file__), 'data', 'baby_names.csv')
+#     async with aiofiles.open(baby_name_filename, 'rb') as fd:
+#         async with asyncstream.reader(fd, ignore_header=False) as reader:
+#             with tempfile.NamedTemporaryFile() as tmpfd:
+#                 async with aiofiles.open(tmpfd.name, 'wb') as wfd:
+#                     writer = asyncstream.writer(wfd, encoding='orc', columns=await reader.header())
+#                     async for row in reader:
+#                         writer.writerow(row)
+#                     await writer.close()
+#                 assert get_raw_lines(baby_name_filename) == decode_orc(tmpfd.name).encode('utf-8').splitlines(True)

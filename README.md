@@ -74,11 +74,11 @@ import asyncstream
 import asyncio
 
 async def run():
-    async with aiofiles.open('input.txt', 'rb') as fd:
+    async with aiofiles.open('examples/animals.txt', 'rb') as fd:
         async with aiofiles.open('output.parquet', 'wb') as wfd:
-            async with asyncstream.open(wfd, 'wb', encoding='parquet', compression='snappy') as pqfd:
+            async with asyncstream.writer(wfd, encoding='parquet', compression='snappy') as writer:
                 async for line in fd:
-                    await pqfd.write(line)
+                    await writer.write(line)
 
 asyncio.run(run())
 ```
@@ -112,7 +112,7 @@ asyncio.run(run())
 
 Compression                                  | Status
 -------------------------------------- | :-----:
-`gzip`                          | :white_check_mark:
+`gzip` / `zlib`                          | :white_check_mark:
 `bzip2`                          | :white_check_mark:
 `snappy`                          | :white_check_mark:
 `zstd`                          | :white_check_mark:
@@ -134,7 +134,7 @@ Compression                       | Status
 -------------------------------------- | :-----:
 none                    | :white_check_mark:
 `bzip2`                  | :x: 
-`gzip`                  | :white_check_mark:
+`gzip` / `zlib`                 | :white_check_mark:
 `snappy`                  | :white_check_mark:
 `zlib`                  | :white_check_mark:
 `zstd`                  | :white_check_mark:
