@@ -1,7 +1,4 @@
 import bz2
-import zlib
-
-import zstd
 
 
 def get_bzip2_encoder():

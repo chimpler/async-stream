@@ -1,0 +1,2 @@
+class HasPendingData(object):
+    pass
