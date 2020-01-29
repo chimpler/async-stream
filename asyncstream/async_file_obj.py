@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional
 
 import aiofiles
@@ -14,6 +15,7 @@ class AsyncFileObj(object):
         self._eof = False
         self._lines = []
         self._index = 0
+        self._filename = None
 
     async def read(self, n: Optional[int] = None):
         buffer_size = n if n else 1024 * 1024
@@ -23,12 +25,15 @@ class AsyncFileObj(object):
                 self._buffer = self._buffer[buffer_size:]
                 return result
 
-            data = await self._afd.read(n)
+            data = await self._afd.read(buffer_size)
             if data:
+                print(self._decompressor.decompress(data))
                 self._buffer += self._decompressor.decompress(data)
             else:
                 self._buffer += self._decompressor.flush()
                 self._eof = True
+
+        return self._buffer
 
         # data = await self._afd.read(n)
         # if data:
@@ -46,7 +51,8 @@ class AsyncFileObj(object):
         else:
             return 0
 
-    # async def __aiter__(self):
+    def __aiter__(self):
+        return self
     #     print('wooof')
     #     if isinstance(self._afd, str):
     #         async with aiofiles.open(self._afd, 'wb') as fd:
@@ -71,6 +77,8 @@ class AsyncFileObj(object):
                     self._lines = lines[1:]
                     return result
                 else:
+                    if not self._lines:
+                        raise StopAsyncIteration
                     result = self._lines[-1]
                     self._lines = []
                     return result
@@ -107,7 +115,14 @@ class AsyncFileObj(object):
         # self._decompressor.close()
 
     async def __aenter__(self):
+        if isinstance(self._afd, str):
+            fd = await aiofiles.open(self._afd, 'wb').__aenter__()
+            self._filename = self._afd
+            self._afd = fd
+            return self
         return self
 
     async def __aexit__(self, *exc_info):
+        if self._filename:
+            self._afd.close()
         return await self.close()

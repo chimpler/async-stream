@@ -1,6 +1,3 @@
-import zlib
-
-import zstd
 from snappy import snappy
 
 
