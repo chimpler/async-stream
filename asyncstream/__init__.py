@@ -1,46 +1,57 @@
 import asyncio
-import gzip
+from typing import Optional, Iterable, Union
 
 import aiofiles
+from aiofiles.threadpool import AsyncBufferedIOBase
+
 from asyncstream.async_file_obj import AsyncFileObj
 from asyncstream.async_reader import AsyncReader
-from asyncstream.codecs.bzip2_codec import get_bzip2_encoder, get_bzip2_decoder
-from asyncstream.codecs.gzip_codec import get_gzip_encoder, get_gzip_decoder
-from asyncstream.codecs.none_codec import NoneDecompressor, NoneCompressor
-from asyncstream.codecs.orc_codec import OrcCompressor, OrcDecompressor
-from asyncstream.codecs.parquet_codec import ParquetCompressor, ParquetDecompressor
-from asyncstream.codecs.snappy_codec import get_snappy_encoder, get_snappy_decoder
-from asyncstream.codecs.zstd_codec import get_zstd_encoder, get_zstd_decoder
+from asyncstream.async_writer import AsyncWriter
 
-def open(afd, encoding=None, compression=None, compress_level=-1):
+def open(afd: Union[str, AsyncBufferedIOBase], mode=None, encoding=None, compression=None, compress_level=-1):
     if encoding is None and compression is None:
+        from asyncstream.codecs.none_codec import NoneDecompressor, NoneCompressor
         compressor = NoneCompressor()
         decompressor = NoneDecompressor()
     elif encoding == 'parquet':
+        from asyncstream.codecs.parquet_codec import ParquetCompressor, ParquetDecompressor
         compressor = ParquetCompressor()
         decompressor = ParquetDecompressor()
     elif encoding == 'orc':
+        from asyncstream.codecs.orc_codec import OrcCompressor, OrcDecompressor
         compressor = OrcCompressor()
         decompressor = OrcDecompressor()
     elif compression == 'gzip':
+        from asyncstream.codecs.gzip_codec import get_gzip_encoder, get_gzip_decoder
         compressor = get_gzip_encoder()
         decompressor = get_gzip_decoder()
     elif compression == 'bzip2':
+        from asyncstream.codecs.bzip2_codec import get_bzip2_encoder, get_bzip2_decoder
         compressor = get_bzip2_encoder()
         decompressor = get_bzip2_decoder()
     elif compression == 'zstd':
+        from asyncstream.codecs.zstd_codec import get_zstd_encoder, get_zstd_decoder
         compressor = get_zstd_encoder()
         decompressor = get_zstd_decoder()
     elif compression == 'snappy':
+        from asyncstream.codecs.snappy_codec import get_snappy_encoder, get_snappy_decoder
         compressor = get_snappy_encoder()
         decompressor = get_snappy_decoder()
     else:
         raise ValueError('Unsupported compression %s' % compression)
 
-    return AsyncFileObj(afd, compressor, decompressor)
+    return AsyncFileObj(afd, mode, compressor, decompressor)
 
-def reader(afd: AsyncFileObj, has_header: bool = True):
+
+def reader(afd: AsyncFileObj, has_header: bool = True, columns: Optional[Iterable[str]] = None,
+           column_types: Optional[Iterable[str]] = None):
     return AsyncReader(afd, has_header=has_header)
+
+
+def writer(afd: AsyncFileObj, has_header: bool = True, columns: Optional[Iterable[str]] = None,
+           column_types: Optional[Iterable[str]] = None):
+    return AsyncWriter(afd, has_header=has_header)
+
 
 async def run():
     # with gzip.open('/Users/fdang/tmp/beacon_data/beacons/0000_part_00.gz', 'rb') as fd:
@@ -51,14 +62,15 @@ async def run():
     # async with aiofiles.open('test.txt.gz', 'rb') as afd:
     # async with aiofiles.open('/Users/fdang/tmp/beacon_data/beacons/0000_part_00.gz', 'rb') as afd:
     async with aiofiles.open('/Users/fdang/tmp/parquet_beacon/0025_part_00.parquet', 'rb') as afd:
-    # async with aiofiles.open('/Users/fdang/tmp/orc/part-00001-ffe952de-a465-46a4-bfc1-c989b3b58cc9-c000.snappy.orc', 'rb') as afd:
+        # async with aiofiles.open('/Users/fdang/tmp/orc/part-00001-ffe952de-a465-46a4-bfc1-c989b3b58cc9-c000.snappy.orc', 'rb') as afd:
         # async with open(afd, None, 'gzip') as fd:
         # async with aiofiles.open('/tmp/aa.gz', 'wb') as wfd:
         async with open('/tmp/aa.gz', compression='gzip') as gzfd:
-                async with open(afd, 'parquet', None) as fd:
-                    async with reader(fd) as r:
-                        async for row in r:
-                            await gzfd.write(b','.join(row) + b'\n')
+            async with open(afd, 'parquet', None) as fd:
+                async with reader(fd) as r:
+                    async for row in r:
+                        await gzfd.write(b','.join(row) + b'\n')
+
 
 if __name__ == '__main__':
     print('====')

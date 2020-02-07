@@ -1,4 +1,7 @@
-import zstd
+try:
+    import zstd
+except ImportError as e:
+    raise('Please install the zstandard package: pip install zstandard')
 
 
 def get_zstd_encoder():
