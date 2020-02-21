@@ -18,6 +18,9 @@ class AsyncWriter(object):
     async def __aexit__(self, *exc):
         return await self._afd.close()
 
+    async def writeheader(self):
+        await self._afd.write(self._sep.join(self._columns) + self._eol)
+
     async def writerow(self, row: List[Any]):
         await self._afd.write(self._sep.join(row) + self._eol)
 

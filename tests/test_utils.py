@@ -138,15 +138,17 @@ def encode_orc(filename: str, compression: str = None, columns: Iterable[str] = 
     with open(filename, 'rt') as fd:
         reader = csv.reader(fd)
 
+        # If columns not provided try to read header from the file
+        if skip_header or columns is None:
+            columns = next(reader)
+            column_types = ['string'] * len(columns)
+
         struct = 'struct<{columns}>'.format(
             columns=','.join(
                 name + ':' + (col_type if col_type else 'string')
                 for name, col_type in zip_longest(columns, column_types)
             )
         )
-
-        if skip_header:
-            next(reader)
 
         if compression in (None, 'zlib', 'zstd'):
             compression_type = getattr(pyorc.CompressionKind, str(compression).upper())
@@ -164,7 +166,7 @@ def encode_orc(filename: str, compression: str = None, columns: Iterable[str] = 
 
 
 def decode_orc(filename: str):
-    with open(filename, "rb") as data:
+    with open(filename, 'rb') as data:
         reader = pyorc.Reader(data)
         return '\n'.join(','.join([str(c) for c in row]) for row in reader)
 

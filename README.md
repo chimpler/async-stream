@@ -17,6 +17,21 @@ import asyncstream
 import asyncio
 
 async def run():
+    async with asyncstream.open('examples/animals.txt', 'rb') as fd:
+        async with asyncstream.open('examples/animals.txt.gz', 'wb', compression='gzip') as gzfd:
+            async for line in fd:
+                await gzfd.write(line)
+
+asyncio.run(run())
+```
+
+or you can also open from an async stream:
+```python
+import aiofiles
+import asyncstream
+import asyncio
+
+async def run():
     async with aiofiles.open('examples/animals.txt', 'rb') as fd:
         async with aiofiles.open('/tmp/animals.txt.gz', 'wb') as wfd:
             async with asyncstream.open(wfd, 'wb', compression='gzip') as gzfd:

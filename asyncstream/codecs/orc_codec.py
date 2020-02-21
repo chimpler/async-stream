@@ -1,3 +1,5 @@
+import io
+import re
 from tempfile import SpooledTemporaryFile
 from typing import Any, Iterable
 import pandas as pd
@@ -5,10 +7,10 @@ import pyorc
 from asyncstream import AsyncFileObj
 
 class OrcDecompressor(object):
-    def __init__(self, sep=b','):
-        self._buffer = SpooledTemporaryFile(mode='wb')
-        self._result = SpooledTemporaryFile(mode='wb')
-        self._sep = sep
+    def __init__(self):
+        # self._buffer = SpooledTemporaryFile(mode='wb')
+        self._buffer = io.BytesIO()
+        self._result = SpooledTemporaryFile(mode='wt')
 
     def decompress(self, data: bytes):
         self._buffer.write(data)
@@ -18,7 +20,13 @@ class OrcDecompressor(object):
         self._buffer.seek(0)
         # TODO: to optimize it
         reader = pyorc.Reader(self._buffer)
-        return reader
+        columns = reader.schema.fields.keys()
+        return (','.join(columns) + '\n' + '\n'.join(
+            ','.join(
+                [str(c) for c in row]
+            )
+            for row in reader
+        )).encode('utf-8') + b'\n'
 
     def __del__(self):
         self._buffer.close()

@@ -79,4 +79,3 @@ async def get_parquet_reader(afd: AsyncFileObj, buffer_memory=1024 * 1024):
 
         for row in table.itertuples(index=False):
             yield row
-            # [col.decode('utf-8') if isinstance(col, bytes) else str(col) for col in row]
