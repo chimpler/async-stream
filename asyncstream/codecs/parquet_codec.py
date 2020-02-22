@@ -1,16 +1,18 @@
 from tempfile import SpooledTemporaryFile
 from typing import Any, Iterable
 from asyncstream import AsyncFileObj
+from asyncstream.codecs import error_import_usage
 
 try:
     import pandas as pd
 except ImportError as e:
-    raise ('Please install the pandas package: pip install pandas')
+    error_import_usage('pandas')
 
 try:
     import pyarrow
-except ImportError as e:
-    raise ('Please install the pyarrow package: pip install pyarrow')
+except ModuleNotFoundError:
+    error_import_usage('pyarrow')
+
 
 
 class ParquetDecompressor(object):

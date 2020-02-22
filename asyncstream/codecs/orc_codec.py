@@ -1,14 +1,26 @@
 import io
-import re
 from tempfile import SpooledTemporaryFile
 from typing import Any, Iterable
-import pandas as pd
-import pyorc
+
+from asyncstream.codecs import error_import_usage
+
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    error_import_usage('pandas')
+
+try:
+    import pyorc
+except ModuleNotFoundError:
+    error_import_usage('pyorc')
+
 from asyncstream import AsyncFileObj
+
 
 class OrcDecompressor(object):
     def __init__(self):
-        # self._buffer = SpooledTemporaryFile(mode='wb')
+        # self._buffer = TemporaryFile(mode='wb')
+        # TODO try to make SpooledTemporaryFile work
         self._buffer = io.BytesIO()
         self._result = SpooledTemporaryFile(mode='wt')
 
@@ -47,22 +59,23 @@ class OrcCompressor(object):
             with SpooledTemporaryFile(mode='wb') as wfd:
                 df.to_parquet(wfd, engine='pyarrow')
                 wfd.seek(0)
-                return wfd.read() 
+                return wfd.read()
 
     def __del__(self):
         self._buffer.close()
 
+
 # async def parquet_write(afd, , columns: Iterable[str] = None, column_types: Iterable[str] = None, compression = None, buffer_memory = 1024 * 1024):
 
-async def parquet_write(afd, rows: Iterable[Iterable[Any]], columns: Iterable[str] = None, column_types: Iterable[str] = None, compression = None, buffer_memory = 1024 * 1024):
+async def parquet_write(afd, rows: Iterable[Iterable[Any]], columns: Iterable[str] = None,
+                        column_types: Iterable[str] = None, compression=None, buffer_memory=1024 * 1024):
     with SpooledTemporaryFile(mode='w+b', max_size=buffer_memory) as wfd:
         df = pd.DataFrame(rows, columns=columns, dtype=column_types)
         df.to_parquet(wfd, engine='pyarrow', compression=compression)
         wfd.seek(0)
 
 
-
-async def get_parquet_reader(afd: AsyncFileObj, buffer_memory = 1024 * 1024):
+async def get_parquet_reader(afd: AsyncFileObj, buffer_memory=1024 * 1024):
     with SpooledTemporaryFile(mode='w+b', max_size=buffer_memory) as wfd:
         async for buf in afd:
             wfd.write(buf)

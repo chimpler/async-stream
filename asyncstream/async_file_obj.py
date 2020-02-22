@@ -1,6 +1,6 @@
 from typing import Optional
 
-import aiofiles
+from asyncstream.codecs import error_import_usage
 
 
 class AsyncFileObj(object):
@@ -146,7 +146,11 @@ class AsyncFileObj(object):
 
     async def __aenter__(self):
         if isinstance(self._afd, str):
-            from aiofiles.threadpool import _open
+            try:
+                from aiofiles.threadpool import _open
+            except ImportError:
+                error_import_usage('aiofiles')
+
             fd = await _open(self._afd, self._mode)
             self._filename = self._afd
             self._afd = fd

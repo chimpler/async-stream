@@ -1,7 +1,9 @@
+from asyncstream.codecs import error_import_usage
+
 try:
     import zstd
 except ImportError as e:
-    raise('Please install the zstandard package: pip install zstandard')
+    error_import_usage('zstd')
 
 
 def get_zstd_encoder():
