@@ -132,16 +132,13 @@ class AsyncFileObj(object):
             if buf:
                 self._afd.write(buf)
 
-        self._afd.flush()
-
+        if hasattr(self._afd, 'flush'):
+            await self._afd.flush()
         # If we pass a filename, then we close the file otherwise it's the
         # responsibility of the caller
         if self._filename:
             self._afd.close()
 
-        # self._compressor.flush()
-        # self._compressor.close()
-        # self._decompressor.close()
         self._is_closed = True
 
     async def __aenter__(self):
